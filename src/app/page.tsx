@@ -2,12 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { Menu, Plus, Share2, MoreVertical, CheckSquare, Edit2 } from 'lucide-react'
+import { Menu, Plus, Share2, MoreVertical, Edit2 } from 'lucide-react'
 import { nanoid } from 'nanoid'
-
+import { DropResult } from 'react-beautiful-dnd';
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -72,7 +71,10 @@ export default function ProjectManager() {
     }
   }, [editingId])
 
-  const onDragEnd = (result: any) => {
+
+
+  
+  const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId, type } = result;
   
     // If there's no destination (e.g., dropped outside a droppable area), do nothing
@@ -100,7 +102,7 @@ export default function ProjectManager() {
       };
   
       setCurrentProject(updatedProject);
-      setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+      setProjects(projects.map(p => (p.id === updatedProject.id ? updatedProject : p)));
       return;
     }
   
@@ -131,7 +133,7 @@ export default function ProjectManager() {
       };
   
       setCurrentProject(updatedProject);
-      setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+      setProjects(projects.map(p => (p.id === updatedProject.id ? updatedProject : p)));
     } 
     // Moving task between different columns
     else {
@@ -163,13 +165,13 @@ export default function ProjectManager() {
       };
   
       setCurrentProject(updatedProject);
-      setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+      setProjects(projects.map(p => (p.id === updatedProject.id ? updatedProject : p)));
     }
   };
   
-
   const addProject = () => {
-    if (newProjectName.trim() === '') return
+    if (newProjectName.trim() === '') return;
+    
     const newProject: Project = {
       id: nanoid(),
       title: newProjectName,
@@ -179,12 +181,14 @@ export default function ProjectManager() {
         { id: nanoid(), title: 'Done', taskIds: [] },
       ],
       tasks: {},
-    }
-    setProjects([...projects, newProject])
-    setCurrentProject(newProject)
-    setNewProjectName('')
-    setIsAddProjectDialogOpen(false)
-  }
+    };
+  
+    setProjects([...projects, newProject]);
+    setCurrentProject(newProject);
+    setNewProjectName('');
+    setIsAddProjectDialogOpen(false);
+  };
+  
 
   const addColumn = () => {
     if (newColumnName.trim() === '') return
