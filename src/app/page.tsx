@@ -2,14 +2,15 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { Menu, Plus, Share2, MoreVertical, Edit2 } from 'lucide-react'
+import { Menu, Plus, Share2, MoreVertical, Edit2, Trash2 } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { DropResult } from 'react-beautiful-dnd';
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 type Task = {
   id: string
@@ -71,18 +72,13 @@ export default function ProjectManager() {
     }
   }, [editingId])
 
-
-
-  
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId, type } = result;
   
-    // If there's no destination (e.g., dropped outside a droppable area), do nothing
     if (!destination) {
       return;
     }
   
-    // If the item is dropped in the same place, do nothing
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
@@ -90,7 +86,6 @@ export default function ProjectManager() {
       return;
     }
   
-    // Handle column reordering
     if (type === 'column') {
       const newColumnOrder = Array.from(currentProject.columns);
       const [reorderedColumn] = newColumnOrder.splice(source.index, 1);
@@ -106,13 +101,11 @@ export default function ProjectManager() {
       return;
     }
   
-    // Handle task reordering within a column
     const startColumn = currentProject.columns.find(col => col.id === source.droppableId);
     const finishColumn = currentProject.columns.find(col => col.id === destination.droppableId);
   
-    if (!startColumn || !finishColumn) return;  // Ensure columns exist
+    if (!startColumn || !finishColumn) return;
   
-    // Moving task within the same column
     if (startColumn === finishColumn) {
       const newTaskIds = Array.from(startColumn.taskIds);
       newTaskIds.splice(source.index, 1);
@@ -134,9 +127,7 @@ export default function ProjectManager() {
   
       setCurrentProject(updatedProject);
       setProjects(projects.map(p => (p.id === updatedProject.id ? updatedProject : p)));
-    } 
-    // Moving task between different columns
-    else {
+    } else {
       const startTaskIds = Array.from(startColumn.taskIds);
       startTaskIds.splice(source.index, 1);
   
@@ -189,7 +180,6 @@ export default function ProjectManager() {
     setIsAddProjectDialogOpen(false);
   };
   
-
   const addColumn = () => {
     if (newColumnName.trim() === '') return
     const newColumn: Column = {
@@ -302,7 +292,7 @@ export default function ProjectManager() {
         }
         setCurrentProject(updatedProject)
         setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p))
-      } else if (editingId?.startsWith('check-')) {
+      } else if (editingId?.includes('|')) {
         const [taskId, checklistItemId] = editingId.split('|')
         const updatedProject = {
           ...currentProject,
@@ -329,6 +319,52 @@ export default function ProjectManager() {
     }
   };
 
+  // Delete functions
+  const deleteProject = (projectId: string) => {
+    const updatedProjects = projects.filter(p => p.id !== projectId);
+    setProjects(updatedProjects);
+    if (currentProject.id === projectId) {
+      setCurrentProject(updatedProjects[0] || null);
+    }
+  };
+
+  const deleteColumn = (columnId: string) => {
+    const updatedColumns = currentProject.columns.filter(c => c.id !== columnId);
+    const updatedProject = {
+      ...currentProject,
+      columns: updatedColumns,
+    };
+    setCurrentProject(updatedProject);
+    setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+  };
+
+  const deleteTask = (columnId: string, taskId: string) => {
+    const updatedProject = {
+      ...currentProject,
+      columns: currentProject.columns.map(col =>
+        col.id === columnId ? { ...col, taskIds: col.taskIds.filter(id => id !== taskId) } : col
+      ),
+      tasks: Object.fromEntries(Object.entries(currentProject.tasks).filter(([id]) => id !== taskId)),
+    };
+    setCurrentProject(updatedProject);
+    setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+  };
+
+  const deleteSubtask = (taskId: string, subtaskId: string) => {
+    const updatedProject = {
+      ...currentProject,
+      tasks: {
+        ...currentProject.tasks,
+        [taskId]: {
+          ...currentProject.tasks[taskId],
+          checklist: currentProject.tasks[taskId].checklist.filter(item => item.id !== subtaskId),
+        },
+      },
+    };
+    setCurrentProject(updatedProject);
+    setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <nav className="flex items-center justify-between p-4 bg-primary text-primary-foreground">
@@ -343,39 +379,30 @@ export default function ProjectManager() {
               <nav className="flex flex-col gap-4">
                 <h2 className="text-lg font-semibold">Projects</h2>
                 {projects.map(project => (
-                  <Button
-                    key={project.id}
-                    variant="ghost"
-                    className="justify-start"
-                    onClick={() => {
-                      setCurrentProject(project)
-                      setIsSidebarOpen(false)
-                    }}
-                  >
-                    {project.title}
-                  </Button>
-                ))}
-                <Dialog open={isAddProjectDialogOpen} onOpenChange={setIsAddProjectDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="mt-4">
-                      <Plus className="mr-2 h-4 w-4" /> Add Project
+                  <div key={project.id} className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      className="justify-start flex-grow"
+                      onClick={() => {
+                        setCurrentProject(project)
+                        setIsSidebarOpen(false)
+                      
+                      }}
+                    >
+                      {project.title}
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Project</DialogTitle>
-                    </DialogHeader>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        placeholder="Enter project name"
-                        value={newProjectName}
-                        onChange={(e) => setNewProjectName(e.target.value)}
-                        onKeyPress={(e) => handleKeyPress(e, addProject)}
-                      />
-                      <Button onClick={addProject}>Add</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteProject(project.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button onClick={() => setIsAddProjectDialogOpen(true)} className="mt-4">
+                  <Plus className="mr-2 h-4 w-4" /> Add Project
+                </Button>
               </nav>
             </SheetContent>
           </Sheet>
@@ -408,29 +435,10 @@ export default function ProjectManager() {
             >
               <Edit2 className="h-4 w-4" />
             </Button>
-          
           </div>
-          <Dialog open={isAddColumnDialogOpen} onOpenChange={setIsAddColumnDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="mr-2 h-4 w-4" /> Add Column
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Column</DialogTitle>
-              </DialogHeader>
-              <div className="flex items-center space-x-2">
-                <Input
-                  placeholder="Enter column name"
-                  value={newColumnName}
-                  onChange={(e) => setNewColumnName(e.target.value)}
-                  onKeyPress={(e) => handleKeyPress(e, addColumn)}
-                />
-                <Button onClick={addColumn}>Add</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm" onClick={() => setIsAddColumnDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add Column
+          </Button>
         </div>
 
         <DragDropContext onDragEnd={onDragEnd}>
@@ -439,7 +447,7 @@ export default function ProjectManager() {
               <div
                 {...provided.droppableProps}
                 ref={provided.innerRef}
-                className="flex gap-4"
+                className="flex flex-col sm:flex-row gap-4"
               >
                 {currentProject.columns.map((column, index) => (
                   <Draggable key={column.id} draggableId={column.id} index={index}>
@@ -447,7 +455,7 @@ export default function ProjectManager() {
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className="bg-secondary p-4 rounded-lg w-80"
+                        className="bg-secondary p-4 rounded-lg w-full sm:w-80"
                       >
                         <div className="flex items-center justify-between mb-4" {...provided.dragHandleProps}>
                           {editingId === column.id ? (
@@ -462,27 +470,18 @@ export default function ProjectManager() {
                               {column.title}
                             </h3>
                           )}
-                          <Dialog open={isAddTaskDialogOpen === column.id} onOpenChange={(open) => setIsAddTaskDialogOpen(open ? column.id : null)}>
-                            <DialogTrigger asChild>
-                              <Button size="sm" variant="ghost">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Add New Task</DialogTitle>
-                              </DialogHeader>
-                              <div className="flex items-center space-x-2">
-                                <Input
-                                  placeholder="Enter task name"
-                                  value={newTaskName}
-                                  onChange={(e) => setNewTaskName(e.target.value)}
-                                  onKeyPress={(e) => handleKeyPress(e, () => addTask(column.id))}
-                                />
-                                <Button onClick={() => addTask(column.id)}>Add</Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                          <div className="flex items-center">
+                            <Button size="sm" variant="ghost" onClick={() => setIsAddTaskDialogOpen(column.id)}>
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteColumn(column.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                         <Droppable droppableId={column.id} type="task">
                           {(provided) => (
@@ -511,27 +510,21 @@ export default function ProjectManager() {
                                               {task.content}
                                             </span>
                                           )}
-                                          <Dialog open={isAddSubtaskDialogOpen === task.id} onOpenChange={(open) => setIsAddSubtaskDialogOpen(open ? task.id : null)}>
-                                            <DialogTrigger asChild>
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
                                               <Button variant="ghost" size="sm">
                                                 <MoreVertical className="h-4 w-4" />
                                               </Button>
-                                            </DialogTrigger>
-                                            <DialogContent>
-                                              <DialogHeader>
-                                                <DialogTitle>Add Subtask</DialogTitle>
-                                              </DialogHeader>
-                                              <div className="flex items-center space-x-2">
-                                                <Input
-                                                  placeholder="Enter subtask name"
-                                                  value={newSubtaskName}
-                                                  onChange={(e) => setNewSubtaskName(e.target.value)}
-                                                  onKeyPress={(e) => handleKeyPress(e, () => addChecklistItem(task.id))}
-                                                />
-                                                <Button onClick={() => addChecklistItem(task.id)}>Add</Button>
-                                              </div>
-                                            </DialogContent>
-                                          </Dialog>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                              <DropdownMenuItem onSelect={() => setIsAddSubtaskDialogOpen(task.id)}>
+                                                Add Subtask
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onSelect={() => deleteTask(column.id, task.id)}>
+                                                Delete Task
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
                                         </div>
                                         {task.checklist.length > 0 && (
                                           <div className="space-y-1 mt-2">
@@ -553,12 +546,19 @@ export default function ProjectManager() {
                                                 ) : (
                                                   <label
                                                     htmlFor={item.id}
-                                                    className="ml-2 text-sm cursor-pointer"
+                                                    className="ml-2 text-sm cursor-pointer flex-grow"
                                                     onClick={() => startEditing(`${task.id}|${item.id}`)}
                                                   >
                                                     {item.text}
                                                   </label>
                                                 )}
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => deleteSubtask(task.id, item.id)}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </Button>
                                               </div>
                                             ))}
                                           </div>
@@ -582,6 +582,74 @@ export default function ProjectManager() {
           </Droppable>
         </DragDropContext>
       </main>
+
+      <Dialog open={isAddProjectDialogOpen} onOpenChange={setIsAddProjectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Project</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <Input
+              placeholder="Enter project name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyPress={(e) => handleKeyPress(e, addProject)}
+            />
+            <Button onClick={addProject}>Add</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddColumnDialogOpen} onOpenChange={setIsAddColumnDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Column</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <Input
+              placeholder="Enter column name"
+              value={newColumnName}
+              onChange={(e) => setNewColumnName(e.target.value)}
+              onKeyPress={(e) => handleKeyPress(e, addColumn)}
+            />
+            <Button onClick={addColumn}>Add</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddTaskDialogOpen !== null} onOpenChange={(open) => setIsAddTaskDialogOpen(open ? isAddTaskDialogOpen : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Task</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <Input
+              placeholder="Enter task name"
+              value={newTaskName}
+              onChange={(e) => setNewTaskName(e.target.value)}
+              onKeyPress={(e) => handleKeyPress(e, () => isAddTaskDialogOpen && addTask(isAddTaskDialogOpen))}
+            />
+            <Button onClick={() => isAddTaskDialogOpen && addTask(isAddTaskDialogOpen)}>Add</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddSubtaskDialogOpen !== null} onOpenChange={(open) => setIsAddSubtaskDialogOpen(open ? isAddSubtaskDialogOpen : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Subtask</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <Input
+              placeholder="Enter subtask name"
+              value={newSubtaskName}
+              onChange={(e) => setNewSubtaskName(e.target.value)}
+              onKeyPress={(e) => handleKeyPress(e, () => isAddSubtaskDialogOpen && addChecklistItem(isAddSubtaskDialogOpen))}
+            />
+            <Button onClick={() => isAddSubtaskDialogOpen && addChecklistItem(isAddSubtaskDialogOpen)}>Add</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
